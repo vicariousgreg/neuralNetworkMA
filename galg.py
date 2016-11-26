@@ -1,11 +1,27 @@
 import random
 import copy
 import time
+from enum import  Enum
+
+class SelMethod(Enum):
+    truncation = 1
+    roulettewheel = 2
+    stochastic = 3
+    ranking = 4
+    tournament = 5
+
+class Selection:
+    def __init__(self, method, size=0, threshold=0.0):
+        self.method = method
+        self.cnt = 0
+        self.size = size
+        self.threshold = threshold
 
 class Individual:
     def __init__(self, chromosome):
         self.chromosome = chromosome
         self.fitness = None
+        self.prop = 0.0
 
     def copy(self):
         return copy.deepcopy(self)
@@ -17,7 +33,7 @@ class Individual:
              for x in max_gene_values])
 
     def mutate(self, rate, max_gene_values):
-        for i in xrange(len(self.chromosome)):
+        for i in range(len(self.chromosome)):
             if random.random() < rate:
                 # Reset fitness and mutate
                 self.fitness = None
@@ -50,7 +66,7 @@ class Population:
         # Generate individuals
         self.individuals = \
             [Individual.random(self.max_indices)
-            for _ in xrange(size)]
+            for _ in range(size)]
 
         # Calculate initial fitnesses
         self.calc_fitness()
@@ -62,36 +78,99 @@ class Population:
             if individual.fitness is None:
                 individual.fitness = self.network.evaluate(
                     self.sequences, self.chromosome_length, individual.chromosome)
+        # calculate proportion of an individual based on fitness value
+        self.calc_proportion()
+    
+    def calc_proportion(self):
+        # Calculate proportion of an individual
+        sum_fitness = 0
+        for individual in self.individuals:
+            if individual.fitness is not None:
+                sum_fitness += individual.fitness
+        if sum_fitness <= 0:
+            raise ValueError("The sum of fitnesses is zero for some reasons")
+        for individual in self.individuals:
+            individual.prop = individual.fitness / sum_fitness
+        
+    def sort(self):
+        # sort the individuals 
+        self.individuals = sorted(self.individuals, key=lambda indiv: indiv.fitness, reverse=True)
 
     def mutate(self, rate):
         for individual in self.individuals:
             individual.mutate(rate, self.max_indices)
 
-    def tournament(self, size):
+    def truncation(self, select):
+        # Use truncation method for selection
+        # "size" = # of individuals in the ordered generation
+        cnt = select.cnt % select.size
+        return self.individuals[cnt]
+
+    def proportional(self, threshold):
+        # Use proportional selection
+        sum_prop = 0.0
+        for individual in self.individuals:
+            sum_prop += individual.prop
+            if sum_prop >= threshold:
+                return individual
+        raise ValueError("Any proportional selection should not reach here")
+        return None
+
+    def roulettewheel(self, select):
+        # Use RouletteWheel selection
+        return self.proportional(select.threshold)
+
+    def stochastic(self, select):
+        # Use Stochastic Universal selection
+        select.threshold += (1 / len(self.individuals))
+        if select.threshold > 1.0:
+            select.threshold -= 1.0
+        return self.proportional(select.threshold)
+
+    def ranking(self, select):
+        return 
+
+    def tournament(self, select):
         # Return the most fit from a random sample
         return max(
             (self.individuals[
                 random.randint(0, len(self.individuals)-1)]
-                for _ in xrange(size)),
+                for _ in range(select.size)),
             key = lambda indiv: indiv.fitness)
+
+    def selection(self, select):
+        funcs = {1 : self.truncation,
+                 2 : self.roulettewheel,
+                 3 : self.stochastic,
+                 4 : self.ranking,
+                 5 : self.tournament,
+                }
+        select.cnt += 1
+        return funcs[select.method.value](select)
 
     def generation(self, tournament_size, elitism=True):
         # Add new random individuals.
         new_individuals = \
             [Individual.random(self.max_indices)
-             for _ in xrange(self.num_random)]
+             for _ in range(self.num_random)]
 
         # Keep best if elitism is true.
         if elitism: new_individuals.append(self.get_best())
 
-        # Perform tournaments to fill population
+        # Initialize selection
+        # Truncation Selection
+        #sm = Selection(SelMethod.truncation, 5)
+        # RouletteWheel Selection
+        #sm = Selection(SelMethod.roulette, 0, random.random())
+        # Stochastic Universal Selection
+        sm = Selection(SelMethod.stochastic, 0, random.random())
         while len(new_individuals) < len(self.individuals):
-            # Run tournaments to determine parents
-            a = self.tournament(tournament_size)
-            b = self.tournament(tournament_size)
+            # Run selection to determine parents
+            a = self.selection(sm)
+            b = self.selection(sm)
 
             # Ensure unique parents
-            while a == b: b = self.tournament(tournament_size)
+            #while a == b: b = self.tournament(tournament_size)
 
             # Crossover
             new_individuals.append(a.crossover(b))
@@ -150,7 +229,7 @@ class GeneticAlgorithm:
             # Mutate
             population.mutate(self.mutation_rate)
 
-            # Recalculate fitness
+            # Recalculate fitness and proportion
             population.calc_fitness()
 
             # Find new best
@@ -165,7 +244,7 @@ class GeneticAlgorithm:
 class Network:
     def evaluate(self, sequences, length, indices):
         score = 0
-        for i in xrange(length):
+        for i in range(length):
             counts = dict((("A", 0), ("C", 0), ("T", 0), ("G", 0)))
             for seq,start in zip(sequences, indices):
                 counts[seq[start+i]] += 1
@@ -176,15 +255,15 @@ class Network:
 
 def gen_sequences(num_sequences, length, seed_length=0):
     print("Generating %d sequences of length %d..." % (num_sequences, length))
-    seqs = [[random.choice("ATCG") for _ in xrange(length)]
-            for _ in xrange(num_sequences)]
+    seqs = [[random.choice("ATCG") for _ in range(length)]
+            for _ in range(num_sequences)]
 
     if seed_length > 0:
-        seed = [random.choice("ATCG") for _ in xrange(seed_length)]
+        seed = [random.choice("ATCG") for _ in range(seed_length)]
         print("Planting seed... (%s)" % "".join(seed))
         for seq in seqs:
             start = random.randint(0, length-seed_length)
-            for i in xrange(seed_length):
+            for i in range(seed_length):
                 seq[start+i] = seed[i]
     return ["".join(seq) for seq in seqs]
 
