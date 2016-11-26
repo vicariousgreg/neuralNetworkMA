@@ -17,6 +17,9 @@ class Selection:
         self.size = size
         self.threshold = threshold
 
+    def reset_count(self):
+        self.cnt = 0
+
 class Individual:
     def __init__(self, chromosome):
         self.chromosome = chromosome
@@ -148,7 +151,7 @@ class Population:
         select.cnt += 1
         return funcs[select.method.value](select)
 
-    def generation(self, tournament_size, elitism=True):
+    def generation(self, select, elitism=True):
         # Add new random individuals.
         new_individuals = \
             [Individual.random(self.max_indices)
@@ -158,19 +161,15 @@ class Population:
         if elitism: new_individuals.append(self.get_best())
 
         # Initialize selection
-        # Truncation Selection
-        #sm = Selection(SelMethod.truncation, 5)
-        # RouletteWheel Selection
-        #sm = Selection(SelMethod.roulette, 0, random.random())
-        # Stochastic Universal Selection
-        sm = Selection(SelMethod.stochastic, 0, random.random())
+        select.reset_count()
         while len(new_individuals) < len(self.individuals):
             # Run selection to determine parents
-            a = self.selection(sm)
-            b = self.selection(sm)
+            a = self.selection(select)
+            b = self.selection(select)
 
             # Ensure unique parents
-            #while a == b: b = self.tournament(tournament_size)
+            if select.method is SelMethod.tournament:
+              while a == b: b = self.selection(select)
 
             # Crossover
             new_individuals.append(a.crossover(b))
@@ -182,8 +181,8 @@ class Population:
         return max(self.individuals, key=lambda indiv:indiv.fitness)
 
 class GeneticAlgorithm:
-    def __init__(self, tournament_size=5, mutation_rate=0.005):
-        self.tournament_size = tournament_size
+    def __init__(self, selection, mutation_rate=0.005):
+        self.selection = selection
         self.mutation_rate = mutation_rate
 
     def run(self, population, num_iterations=None, fitness_threshold=None,
@@ -224,7 +223,7 @@ class GeneticAlgorithm:
                     % (iterations, best_of_best.fitness))
 
             # New generation
-            population.generation(self.tournament_size, elitism=True)
+            population.generation(self.selection, elitism=True)
 
             # Mutate
             population.mutate(self.mutation_rate)
@@ -292,9 +291,16 @@ def main():
     pop = Population(Network(), sequences, sub_length, pop_size, num_random)
 
     # Genetic Algorithm
-    tournament_size = 10
+    # Truncation Selection
+    #selection = Selection(SelMethod.truncation, 5)
+    # RouletteWheel Selection
+    #selection = Selection(SelMethod.roulettewheel, 0, random.random())
+    # Stochastic Universal Selection
+    #selection = Selection(SelMethod.stochastic, 0, random.random())
+    # Tournament Selection
+    selection = Selection(SelMethod.tournament, 10)
     mutation_rate = 0.05
-    galg = GeneticAlgorithm(tournament_size, mutation_rate)
+    galg = GeneticAlgorithm(selection, mutation_rate)
 
     iterations = 100
     best = galg.run(pop, num_iterations=iterations, verbose=True)
