@@ -1,24 +1,57 @@
 import random
 import copy
 import time
+import math
 from enum import  Enum
+
 
 class SelMethod(Enum):
     truncation = 1
     roulettewheel = 2
     stochastic = 3
-    ranking = 4
-    tournament = 5
+    ranking_quick = 4
+    ranking_slow = 5
+    tournament = 6
+
 
 class Selection:
-    def __init__(self, method, size=0, threshold=0.0):
+    def __init__(self, method, size=0):
         self.method = method
         self.cnt = 0
         self.size = size
-        self.threshold = threshold
+        self.threshold = 0.0
+        self.rank_val = (0, 0)
 
-    def reset_count(self):
+    def reset(self, population):
         self.cnt = 0
+        if self.method is SelMethod.stochastic:
+            self.threshold = random.random()\
+                              * (1 / len(population.individuals))
+        if population is not None and\
+            self.method is SelMethod.ranking_quick or\
+            self.method is SelMethod.ranking_slow:
+            self.prep_ranking(population)
+
+    def prep_ranking(self, population):
+        i = 0
+        pop_size = len(population.individuals)
+        for individual in population.individuals:
+            if individual.fitness is not None:
+                break
+            else:
+                i += 1
+        median = int((i + pop_size - 1) / 2)
+        pressure = population.individuals[pop_size - 1].fitness\
+                    / population.individuals[median].fitness
+        if pressure <= 0:
+            raise ValueError("pressure value is below or equal to zero")
+        a = (2 * pop_size - pressure * (pop_size + 1))\
+            / (pop_size * (pop_size - 1))
+        b = (2 * (pressure - 1)) / (pop_size * (pop_size - 1))
+        self.rank_val = (a, b)
+        if self.method is SelMethod.ranking_slow:
+            population.calc_proportion(self.rank_val)
+
 
 class Individual:
     def __init__(self, chromosome):
@@ -74,6 +107,9 @@ class Population:
         # Calculate initial fitnesses
         self.calc_fitness()
 
+        # Calculate initial proportion
+        self.calc_proportion()
+
     def calc_fitness(self):
         # Use network to evaluate fitness
         for individual in self.individuals:
@@ -81,23 +117,28 @@ class Population:
             if individual.fitness is None:
                 individual.fitness = self.network.evaluate(
                     self.sequences, self.chromosome_length, individual.chromosome)
-        # calculate proportion of an individual based on fitness value
-        self.calc_proportion()
-    
-    def calc_proportion(self):
+       
+    def calc_proportion(self, rank_val=None):
         # Calculate proportion of an individual
-        sum_fitness = 0
-        for individual in self.individuals:
-            if individual.fitness is not None:
-                sum_fitness += individual.fitness
-        if sum_fitness <= 0:
-            raise ValueError("The sum of fitnesses is zero for some reasons")
-        for individual in self.individuals:
-            individual.prop = individual.fitness / sum_fitness
+        if rank_val is None:
+            sum_fitness = 0
+            for individual in self.individuals:
+                if individual.fitness is not None:
+                    sum_fitness += individual.fitness
+            if sum_fitness <= 0:
+                raise ValueError("The sum of fitnesses is zero")
+            for individual in self.individuals:
+                individual.prop = individual.fitness / sum_fitness
+        else:
+            a, b = rank_val
+            i = 1
+            for individual in self.individuals:
+                individual.fitness = a + b * i
+                i += 1
         
-    def sort(self):
+    def sort(self, reverse=True):
         # sort the individuals 
-        self.individuals = sorted(self.individuals, key=lambda indiv: indiv.fitness, reverse=True)
+        self.individuals = sorted(self.individuals, key=lambda indiv: indiv.fitness, reverse=reverse)
 
     def mutate(self, rate):
         for individual in self.individuals:
@@ -107,7 +148,7 @@ class Population:
         # Use truncation method for selection
         # "size" = # of individuals in the ordered generation
         cnt = select.cnt % select.size
-        return self.individuals[cnt]
+        return self.individuals[cnt - 1]
 
     def proportional(self, threshold):
         # Use proportional selection
@@ -116,22 +157,36 @@ class Population:
             sum_prop += individual.prop
             if sum_prop >= threshold:
                 return individual
-        raise ValueError("Any proportional selection should not reach here")
+        raise ValueError("Proportional selection should not reach here")
         return None
 
-    def roulettewheel(self, select):
+    def roulettewheel(self, select=None):
         # Use RouletteWheel selection
-        return self.proportional(select.threshold)
+        return self.proportional(random.random())
 
-    def stochastic(self, select):
+    def stochastic(self, select=None):
         # Use Stochastic Universal selection
-        select.threshold += (1 / len(self.individuals))
+        if select.cnt > 1:
+            select.threshold += (1 / len(self.individuals))
         if select.threshold > 1.0:
             select.threshold -= 1.0
         return self.proportional(select.threshold)
 
-    def ranking(self, select):
-        return 
+    def ranking_quick(self, select):
+        # Use (Linear) Ranking selection
+        # Note: this version might fail if the proportion of the median is
+        # the same as that of the fittest one
+        a, b = select.rank_val
+        if b == 0 :
+            raise ValueError("b value becomes zero during ranking select")
+        r = random.random()
+        in_root = (2 * a + b) ** 2 + 8 * b * r
+        k = (-1 * (2 * a + b) + math.sqrt(in_root)) / (2 * b)
+        return self.individuals[math.ceil(k-1)]
+
+    def ranking_slow(self, select=None):
+        # Use Linear Ranking selection
+        return self.proportional(random.random())
 
     def tournament(self, select):
         # Return the most fit from a random sample
@@ -141,12 +196,20 @@ class Population:
                 for _ in range(select.size)),
             key = lambda indiv: indiv.fitness)
 
+    def pre_selection(self, select):
+        if select.method is SelMethod.truncation:
+            self.sort()
+        elif select.method is SelMethod.ranking_quick or\
+              select.method is SelMethod.ranking_slow:
+            self.sort(reverse=False)
+
     def selection(self, select):
         funcs = {1 : self.truncation,
                  2 : self.roulettewheel,
                  3 : self.stochastic,
-                 4 : self.ranking,
-                 5 : self.tournament,
+                 4 : self.ranking_quick,
+                 5 : self.ranking_slow,
+                 6 : self.tournament,
                 }
         select.cnt += 1
         return funcs[select.method.value](select)
@@ -161,7 +224,8 @@ class Population:
         if elitism: new_individuals.append(self.get_best())
 
         # Initialize selection
-        select.reset_count()
+        self.pre_selection(select)
+        select.reset(self)
         while len(new_individuals) < len(self.individuals):
             # Run selection to determine parents
             a = self.selection(select)
@@ -231,6 +295,9 @@ class GeneticAlgorithm:
             # Recalculate fitness and proportion
             population.calc_fitness()
 
+            # Recalculate proportion
+            population.calc_proportion()
+
             # Find new best
             best = population.get_best()
             if best.fitness > best_of_best.fitness:
@@ -292,13 +359,19 @@ def main():
 
     # Genetic Algorithm
     # Truncation Selection
-    #selection = Selection(SelMethod.truncation, 5)
+    #selection = Selection(SelMethod.truncation, 10)
     # RouletteWheel Selection
-    #selection = Selection(SelMethod.roulettewheel, 0, random.random())
+    #selection = Selection(SelMethod.roulettewheel, 0)
     # Stochastic Universal Selection
-    #selection = Selection(SelMethod.stochastic, 0, random.random())
+    #selection = Selection(SelMethod.stochastic, 0)
+    # Ranking selection (quick version)
+    #selection = Selection(SelMethod.ranking_quick, 0)
+    # Ranking selection (slow version)
+    #selection = Selection(SelMethod.ranking_slow, 0)
     # Tournament Selection
     selection = Selection(SelMethod.tournament, 10)
+
+   
     mutation_rate = 0.05
     galg = GeneticAlgorithm(selection, mutation_rate)
 
