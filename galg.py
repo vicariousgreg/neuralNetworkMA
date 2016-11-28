@@ -147,7 +147,7 @@ class Population:
     def truncation(self, select):
         # Use truncation method for selection
         # "size" = # of individuals in the ordered generation
-        cnt = select.cnt % select.size
+        cnt = (select.cnt % len(self.individuals)) % select.size
         return self.individuals[cnt - 1]
 
     def proportional(self, threshold):
@@ -232,8 +232,7 @@ class Population:
             b = self.selection(select)
 
             # Ensure unique parents
-            if select.method is SelMethod.tournament:
-              while a == b: b = self.selection(select)
+            while a == b: b = self.selection(select)
 
             # Crossover
             new_individuals.append(a.crossover(b))
