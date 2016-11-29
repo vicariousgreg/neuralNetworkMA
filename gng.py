@@ -40,7 +40,6 @@ class GrowingNeuralGas:
         self.distances = zeros(self.size)
         self.active_neurons = [False] * self.size
         self.num_active_neurons = 0
-        self.last_input = None
 
         # Neuron locations
         self.locations = zeros((self.size, feature_length))
@@ -108,8 +107,6 @@ class GrowingNeuralGas:
         self.edges[b][a] = age
 
     def feedforward(self, values):
-        self.last_input = values
-
         # Reset output.
         self.output.fill(0.0)
 
@@ -131,21 +128,21 @@ class GrowingNeuralGas:
             self.error[closest[0]] += self.distances[closest[0]]
 
             # Adjust weights
-            self.adjust_weights(closest[0], closest[1])
+            self.adjust_weights(values, closest[0], closest[1])
 
         return self.output
 
-    def adjust_weights(self, closest_neuron, second_closest_neuron):
+    def adjust_weights(self, last_input, closest_neuron, second_closest_neuron):
         # Move closest neuron closer to input vector by es
         self.locations[closest_neuron] = \
-            move(self.locations[closest_neuron], self.last_input, self.es)
+            move(self.locations[closest_neuron], last_input, self.es)
         # Move s's neighbors closer by en
         changed = [closest_neuron]
         for i in range(self.size):
             if self.edges[closest_neuron][i] >= 0:
                 changed.append(i)
                 self.locations[i] = \
-                    move(self.locations[i], self.last_input, self.en)
+                    move(self.locations[i], last_input, self.en)
 
         # Set RBF mean of moved neurons to avg dist to neighbors
         for i in changed:
@@ -194,7 +191,6 @@ class GrowingNeuralGas:
 
             # Set up edges
             self.set_edge_age(u, worst_neighbor, -1)
-
             self.set_edge_age(u, n, 0)
             self.set_edge_age(n, worst_neighbor, 0)
 
