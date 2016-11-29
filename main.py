@@ -1,6 +1,7 @@
 import random
 from galg import GeneticAlgorithm, Population, Selection, SelMethod
-from network import Network
+from network import Network, GNGNetwork
+from dataset import Dataset, generate_dataset
 
 def gen_sequences(num_sequences, length, seed_length=0):
     print("Generating %d sequences of length %d..." % (num_sequences, length))
@@ -11,7 +12,7 @@ def gen_sequences(num_sequences, length, seed_length=0):
         seed = [random.choice("ATCG") for _ in range(seed_length)]
         print("Planting seed... (%s)" % "".join(seed))
         for seq in seqs:
-            start = random.randint(0, length-seed_length)
+            start = random.randint(0, length-seed_length-1)
             for i in range(seed_length):
                 seq[start+i] = seed[i]
     return ["".join(seq) for seq in seqs]
@@ -60,5 +61,20 @@ def main():
 
     print_subsequences(sequences, sub_length, best)
 
+def gng_main():
+    dataset = generate_dataset()
+    network = GNGNetwork(verbose=False)
+    print("Columns:")
+    for column in dataset.get_columns(): print(column, network.evaluate_column(column))
+
+    network.train(dataset.get_columns(), 100)
+
+    print("GNG Nodes:")
+    for loc in network.gng.locations: print(loc)
+
+    print("Columns:")
+    for column in dataset.get_columns(): print(column, network.evaluate_column(column))
+
 if __name__ == "__main__":
     main()
+    #gng_main()
