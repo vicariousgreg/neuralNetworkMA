@@ -2,14 +2,15 @@ import random
 from galg import GeneticAlgorithm, Population, Selection, SelMethod
 from network import Network, GNGNetwork
 from dataset import Dataset, generate_dataset
+from alphabet import get_nucleotides, get_amino_acids
 
-def gen_sequences(num_sequences, length, seed_length=0):
+def gen_sequences(alphabet, num_sequences, length, seed_length=0):
     print("Generating %d sequences of length %d..." % (num_sequences, length))
-    seqs = [[random.choice("ATCG") for _ in range(length)]
+    seqs = [[random.choice(alphabet) for _ in range(length)]
             for _ in range(num_sequences)]
 
     if seed_length > 0:
-        seed = [random.choice("ATCG") for _ in range(seed_length)]
+        seed = [random.choice(alphabet) for _ in range(seed_length)]
         print("Planting seed... (%s)" % "".join(seed))
         for seq in seqs:
             start = random.randint(0, length-seed_length-1)
@@ -33,13 +34,13 @@ def main():
     num_sequences = 100
     sequence_length = 100
     sub_length = 10
-    sequences = gen_sequences(num_sequences, sequence_length, seed_length=sub_length)
+    sequences = gen_sequences(get_nucleotides(), num_sequences, sequence_length, seed_length=sub_length)
     print_sequences(sequences)
 
     # Population
     pop_size = 500
     num_random = 50
-    pop = Population(Network(), sequences, sub_length, pop_size, num_random)
+    pop = Population(Network(get_nucleotides()), sequences, sub_length, pop_size, num_random)
 
     # Genetic Algorithm
     #selection = Selection(SelMethod.truncation, 10)
@@ -63,7 +64,7 @@ def main():
 
 def gng_main():
     dataset = generate_dataset()
-    network = GNGNetwork(verbose=False)
+    network = GNGNetwork(get_nucleotides(), verbose=False)
     print("Columns:")
     for column in dataset.get_columns(): print(column, network.evaluate_column(column))
 

@@ -1,18 +1,22 @@
 from gng import GrowingNeuralGas
 
 class Network:
+    def __init__(self, alphabet):
+        self.alphabet = alphabet
+
     def evaluate(self, sequences, length, indices):
         score = 0
         for i in range(length):
-            counts = dict((("A", 0), ("C", 0), ("T", 0), ("G", 0)))
+            counts = dict(zip(self.alphabet, [0] * len(self.alphabet)))
             for seq,start in zip(sequences, indices):
                 counts[seq[start+i]] += 1
             score += max(counts.values())
         return score
 
 class GNGNetwork:
-    def __init__(self, verbose=False):
-        self.gng = GrowingNeuralGas(20, feature_length=4, verbose=verbose)
+    def __init__(self, alphabet, verbose=False):
+        self.gng = GrowingNeuralGas(20, feature_length=len(alphabet), verbose=verbose)
+        self.alphabet = alphabet
 
     def train(self, columns, iterations):
         for _ in range(iterations):
@@ -23,7 +27,7 @@ class GNGNetwork:
     def evaluate(self, sequences, length, indices):
         score = 0
         for i in range(length):
-            counts = dict((("A", 0.0), ("C", 0.0), ("T", 0.0), ("G", 0.0)))
+            counts = dict(zip(self.alphabet, [0] * len(self.alphabet)))
             for seq,start in zip(sequences, indices):
                 counts[seq[start+i]] += 1.0
             score += self.evaluate_column([x / len(sequences) for x in counts.values()])
