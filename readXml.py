@@ -2,46 +2,26 @@ import xml.etree.ElementTree as ET
 
 class FilterSequences:
   sequences = []
-  alignOrgIndex = []
-  alignIndex = []
+  AlignmentEntry = []
   
   def __init__(self, inputXml):
     self.xmlFile = inputXml 
 
-  def add(self, seqData, orgAlignIdx, sIndex):
-    self.sequences.append(seqData.replace("-",""))
-    self.alignIndex.append(sIndex)
-    self.alignOrgIndex.append(orgAlignIdx)
+  def add_entry(self, alignmentSize, malign):
+     entry = []
+     entry.append(alignmentSize)
+     entry.append(malign)
+     self.AlignmentEntry.append(entry)
 
-  def parseXML1(self):
-     tree = ET.parse(self.xmlFile)
-     root = tree.getroot()
-     for sequence in root.find('alignment').findall('sequence'):
-          sequenceData = str(sequence.find('seq-data').text)
-          is_first = 1
-          without_gap = 0
-          for alignment in sequence.iter('fitem'):
-              startIndex = int(alignment.find('fstart').text)
-              stopIndex = int(alignment.find('fstop').text)
-              if sequenceData[startIndex : stopIndex].find('-') != -1: 
-                 without_gap = 1
-              elif is_first == 1:
-                 is_first = 0
-                 rcrdStart = startIndex
-                 adjustIndex = sequenceData.count('-',startIndex,stopIndex)
-                 
-          if without_gap == 0:
-              self.add(sequenceData, rcrdStart, rcrdStart - adjustIndex)  
-
-  def parseXML2(self):
+  def parseXML(self):
      tree = ET.parse(self.xmlFile)
      root = tree.getroot()
      alignStartIndex = []
-     alignEndIndex = []
+     alignLen = []
      alignment = root.find('alignment').find('column-score').find('colsco-data').text
      alignment = alignment.split(' ')
      algn = count = 0
-     prev = -1
+     prev = '-1'
      for i in range(len(alignment)):
           if alignment[i] == '1':
              if algn == 1:
@@ -52,36 +32,41 @@ class FilterSequences:
           elif alignment[i] == '0':
              algn = 1   
              if prev == '1':
-               alignEndIndex.append(count)
+               alignLen.append(count)
           prev = alignment[i]
-
-     for sequence in root.find('alignment').findall('sequence'):
-          sequenceData = str(sequence.find('seq-data').text)
-          is_first = 1
-          without_gap = 0
-          rcrdStart = adjustIndex = 0
-          for i in range(len(alignStartIndex)):
-              startIndex = alignStartIndex[i]
-              stopIndex = alignEndIndex[i]
-              if sequenceData[startIndex : stopIndex].find('-') != -1:
-                 without_gap = 1
-              elif is_first == 1:
-                 is_first = 0
-                 adjustIndex = sequenceData.count('-', rcrdStart, startIndex)
-                 rcrdStart = startIndex
-
-          if without_gap == 0:
-              self.add(sequenceData, rcrdStart, rcrdStart - adjustIndex)
-
+     
+     add_sequence = 1
+     startIndex = stopIndex = 0
+     for i in range(len(alignStartIndex)):
+        multi_alignment = []
+        if i != 0:
+           add_sequence = 0      
+        for sequence in root.find('alignment').findall('sequence'):
+           sequenceData = str(sequence.find('seq-data').text)
+           startIndex = alignStartIndex[i]
+           stopIndex = startIndex + alignLen[i]
+           
+           if sequenceData[startIndex : stopIndex].find('-') != -1:
+               multi_alignment.append(None)
+           else:
+               adjustIndex = sequenceData.count('-', 0, startIndex)
+               multi_alignment.append(startIndex - adjustIndex + 1)
+           if add_sequence == 1:
+               self.sequences.append(sequenceData.replace("-",""))   
+        print stopIndex 
+        print startIndex
+        self.add_entry(alignLen[i], multi_alignment)
+               
+    
   def printSequences(self):
      for i in range(len(self.sequences)):
-       print('{0} is now aligned at {1} than {other}'.format(self.sequences[i], \
-              self.alignIndex[i], other = self.alignOrgIndex[i]))  
-
-
+       print('Sequqnece {0}:{1} '.format(i, self.sequences[i]))
+    
+     for j in self.AlignmentEntry :
+       print('len {0}'.format(j[0]))
+       print('alignment{0}'.format(j[1]))
+       
 def main():
-    Filter = FilterSequences("data/BB11002.xml")
-    Filter.parseXML2()
-    Filter.printSequences()
-
-main()
+     Filter = FilterSequences("data/BB11002.xml")
+     Filter.parseXML()
+     Filter.printSequences()         
