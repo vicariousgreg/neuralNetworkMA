@@ -29,7 +29,7 @@ def print_subsequences(sequences, length, indices):
         print(seq[i:i+length])
     print("")
 
-def main():
+def ga_main():
     # Sequences
     num_sequences = 100
     sequence_length = 100
@@ -63,19 +63,29 @@ def main():
     print_subsequences(sequences, sub_length, best)
 
 def gng_main():
-    dataset = generate_dataset()
-    network = GNGNetwork(get_nucleotides(), verbose=False)
-    print("Columns:")
-    for column in dataset.get_columns(): print(column, network.evaluate_column(column))
+    dataset = Dataset(get_amino_acids(), "data")
+    columns = dataset.get_columns()[:1000]
 
-    network.train(dataset.get_columns(), 100)
+    network = GNGNetwork(get_amino_acids(), size=20, verbose=False)
+    print("Columns: %d" % len(columns))
+    total_score = 0
+    for column in columns:
+        #print(" ".join("%.4f" % x if x > 0.0 else "      " for x in column))
+        #print(column, network.evaluate_column(column))
+        total_score += network.evaluate_column(column)
+    print("Pretraining total score: %f" % (total_score / len(columns)))
+    network.train(columns, 10)
 
     print("GNG Nodes:")
     for loc in network.gng.locations: print(loc)
 
     print("Columns:")
-    for column in dataset.get_columns(): print(column, network.evaluate_column(column))
+    total_score = 0
+    for column in columns:
+        #print(column, network.evaluate_column(column))
+        total_score += network.evaluate_column(column)
+    print("Posttraining total score: %f" % (total_score / len(columns)))
 
 if __name__ == "__main__":
-    main()
-    #gng_main()
+    #ga_main()
+    gng_main()

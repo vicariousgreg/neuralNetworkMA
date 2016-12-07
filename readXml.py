@@ -1,39 +1,38 @@
 import xml.etree.ElementTree as ET
 
 class FilterSequences:
-  sequences = []
-  AlignmentEntry = []
   
   def __init__(self, inputXml):
-    self.xmlFile = inputXml 
-
-  def add_entry(self, alignmentSize, malign):
-     entry = []
-     entry.append(alignmentSize)
-     entry.append(malign)
-     self.AlignmentEntry.append(entry)
+     self.sequences = []
+     self.AlignmentEntry = []
+     self.xmlFile = inputXml 
+     self.parseXML()
 
   def parseXML(self):
      tree = ET.parse(self.xmlFile)
      root = tree.getroot()
      alignStartIndex = []
      alignLen = []
-     alignment = root.find('alignment').find('column-score').find('colsco-data').text
-     alignment = alignment.split(' ')
-     algn = count = 0
-     prev = '-1'
+     alignment = root.find('alignment').find('column-score').find('colsco-data').text.strip().split(' ')
+
+     intron = 0
+     exon = 1
+     state = intron
      for i in range(len(alignment)):
-          if alignment[i] == '1':
-             if algn == 1:
-               alignStartIndex.append(i)
-               count = 0
-               algn = 0
-             count = count + 1 
-          elif alignment[i] == '0':
-             algn = 1   
-             if prev == '1':
-               alignLen.append(count)
-          prev = alignment[i]
+         val = alignment[i]
+         if val == '1':
+             if state == intron:
+                 alignStartIndex.append(i)
+             state = exon
+         elif val == '0':
+             if state == exon:
+                 alignLen.append(i - alignStartIndex[-1])
+             state = intron
+     if state == exon:
+         alignLen.append(i - alignStartIndex[-1])
+
+     #print(alignStartIndex)
+     #print(alignLen)
      
      add_sequence = 1
      startIndex = stopIndex = 0
@@ -50,23 +49,30 @@ class FilterSequences:
                multi_alignment.append(None)
            else:
                adjustIndex = sequenceData.count('-', 0, startIndex)
-               multi_alignment.append(startIndex - adjustIndex + 1)
+               multi_alignment.append(startIndex - adjustIndex)
            if add_sequence == 1:
-               self.sequences.append(sequenceData.replace("-",""))   
-        print stopIndex 
-        print startIndex
-        self.add_entry(alignLen[i], multi_alignment)
+               self.sequences.append(sequenceData.replace("-","").upper().strip())
+        #print stopIndex
+        #print startIndex
+        self.AlignmentEntry.append((alignLen[i], multi_alignment))
                
     
   def printSequences(self):
      for i in range(len(self.sequences)):
-       print('Sequqnece {0}:{1} '.format(i, self.sequences[i]))
+       print('Sequence {0}:{1} '.format(i, self.sequences[i]))
     
-     for j in self.AlignmentEntry :
-       print('len {0}'.format(j[0]))
-       print('alignment{0}'.format(j[1]))
+     for length,indices in self.AlignmentEntry :
+       print('len {0}'.format(length))
+       print('alignment{0}'.format(indices))
+       for index, sequence in zip(indices, self.sequences):
+           if index is not None:
+               print(sequence[index:index+length])
+
        
-def main():
-     Filter = FilterSequences("data/BB11002.xml")
-     Filter.parseXML()
+def test():
+     filename = "data/BBS12034.xml"
+     Filter = FilterSequences(filename)
      Filter.printSequences()         
+
+
+#test()

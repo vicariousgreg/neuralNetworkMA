@@ -14,8 +14,8 @@ class Network:
         return score
 
 class GNGNetwork:
-    def __init__(self, alphabet, verbose=False):
-        self.gng = GrowingNeuralGas(20, feature_length=len(alphabet), verbose=verbose)
+    def __init__(self, alphabet, size=20, verbose=False):
+        self.gng = GrowingNeuralGas(size, feature_length=len(alphabet), verbose=verbose)
         self.alphabet = alphabet
 
     def train(self, columns, iterations):

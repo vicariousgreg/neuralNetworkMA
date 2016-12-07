@@ -1,45 +1,56 @@
 import random
 from alphabet import get_nucleotides, get_amino_acids
+from readXml import FilterSequences
+from os import listdir
 
-class Entry:
-    def __init__(self, alphabet, sequences, seq_ids, indices, length):
-        if len(seq_ids) != len(indices):
-            raise ValueError
-        self.seq_ids = seq_ids
-        self.indices = indices
-        self.length = length
+class SequenceCluster:
+    def __init__(self, alphabet, sequences, alignments):
+        #print(sequences)
+        #print(alignments)
+        if any(len(indices) != len(sequences) for length,indices in alignments):
+            raise ValueError("Invalid index list length!")
+
+        alignments = [(l,i) for l,i in alignments if not any(x is None for x in i)]
+
+        self.sequences = sequences
+        self.alignments = alignments
 
         self.columns = []
-        for offset in range(length):
-            counts = dict(zip(alphabet, [0] * len(alphabet)))
-            for seq_id,start in zip(seq_ids, indices):
-                counts[sequences[seq_id][start+offset]] += 1.0
-            self.columns.append([x / len(sequences) for x in counts.values()])
+        for length,indices in alignments:
+            #print(length, indices)
+            for offset in range(length):
+                counts = dict(zip(alphabet, [0] * len(alphabet)))
+                for sequence,start in zip(sequences, indices):
+                    if start is None: continue
+                    if start+offset >= len(sequence):
+                        raise ValueError("Invalid index start(%d) offset(%d) into len(%d)!" % (start, offset, len(sequence)))
+                    try:
+                        counts[sequence[start+offset]] += 1.0
+                    except KeyError:
+                        raise ValueError("Invalid letter %s in sequence!" % sequence[start+offset])
+                self.columns.append([x / len(sequences) for x in counts.values()])
 
 class Dataset:
-    def __init__(self, alphabet):
-        self.sequences = []
-        self.entries = []
+    def __init__(self, alphabet, directory):
         self.alphabet = alphabet
-
-    def add_sequence(self, sequence):
-        self.sequences.append(sequence)
-        return len(self.sequences)-1
-
-    def add_alignment(self, seq_ids, indices, length):
-        # Check sequence IDs
-        if any(seq_id >= len(self.sequences) for seq_id in seq_ids):
-            raise ValueError
-        # Check indices
-        if any(i + length >= len(self.sequences[seq_id])
-               for seq_id, i in zip(seq_ids, indices)):
-            raise ValueError
-        self.entries.append(Entry(self.alphabet, self.sequences, seq_ids, indices, length))
+        self.sequence_clusters = []
+        self.columns = []
+        for f in listdir(directory):
+            path = "%s/%s" % (directory, f)
+            #print(path)
+            filtered = FilterSequences(path)
+            #print(filtered.AlignmentEntry)
+            try:
+                cluster = SequenceCluster(alphabet,
+                    filtered.sequences, filtered.AlignmentEntry)
+                self.sequence_clusters.append(cluster)
+                self.columns += cluster.columns
+            except ValueError as e:
+                print(e)
+                print("Invalid data in %s.  Skipping..." % path)
 
     def get_columns(self):
-        return [entry.columns[i]
-                for entry in self.entries
-                for i in range(len(entry.columns))]
+        return self.columns
 
 def gen_sequences(alphabet, num_sequences, length, seed_length=0, mut_rate=None):
     print("Generating %d sequences of length %d..." % (num_sequences, length))
@@ -72,3 +83,14 @@ def generate_dataset():
     dataset.add_alignment(seq_ids, indices, sub_length)
 
     return dataset
+
+def test():
+    dataset = Dataset(get_amino_acids(), "data")
+    print("Sequence_clusters: %d" % len(dataset.sequence_clusters))
+    print("Columns: %d" % len(dataset.get_columns()))
+
+    s = 0
+    for cluster in dataset.sequence_clusters:
+        for length,indices in cluster.alignments:
+            s += length
+    print(s)
