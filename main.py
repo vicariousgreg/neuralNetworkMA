@@ -1,7 +1,7 @@
 import random
 from galg import GeneticAlgorithm, Population, Selection, SelMethod
 from network import Network, GNGNetwork
-from dataset import Dataset, generate_dataset, generate_random_columns
+from dataset import Dataset
 from alphabet import get_nucleotides, get_amino_acids
 
 def gen_sequences(alphabet, num_sequences, length, seed_length=0):
@@ -71,28 +71,52 @@ def evaluate(network, columns, verbose=False):
     return total_score / count
 
 def gng_main():
-    dataset = Dataset(get_amino_acids(), "data")
-    dataset.print_statistics()
-    columns = dataset.get_columns()[:1000]
-    random_columns = dataset.get_random_columns()[:1000]
+    # Parameters
+    max_columns = 50000
+    network_size = 200
+    iterations = 100
+    training_fraction = 0.05
 
-    network = GNGNetwork(get_amino_acids(), size=200, verbose=False)
+    # Generate dataset and print statistics
+    training_dataset, test_dataset = \
+        Dataset.create_split_dataset(get_amino_acids(), "data")
+    print("Training set:")
+    training_dataset.print_statistics()
+    print("")
+    print("Test set:")
+    test_dataset.print_statistics()
+    print("")
 
-    print("Columns: %d" % len(columns))
-    print("Pretraining real score: %f" % evaluate(network, columns, verbose=False))
-    print("Pretraining random score: %f" % evaluate(network, random_columns))
+    # Pull columns
+    training_columns = training_dataset.get_columns()[:max_columns]
+    training_random_columns = training_dataset.get_random_columns()[:max_columns]
+    test_columns = test_dataset.get_columns()[:max_columns]
+    test_random_columns = test_dataset.get_random_columns()[:max_columns]
 
+    # Create network
+    network = GNGNetwork(get_amino_acids(), size=network_size, verbose=False)
+
+    def print_scores():
+        print("Scores: Training[ %.6f / %.6f ]  Test[ %.6f / %.6f ]" % \
+            (evaluate(network, training_columns),
+             evaluate(network, training_random_columns),
+             evaluate(network, test_columns),
+             evaluate(network, test_random_columns)))
+
+    # Print pre-scores
+    print("Columns: Training[ %6d / %6d ]  Test[ %6d / %6d]" % \
+        (len(training_columns), len(training_random_columns),
+         len(test_columns),      len(test_random_columns)))
+    print_scores()
+
+    # Perform training
+    for _ in range(iterations):
+        network.train(training_columns, 1, fraction=training_fraction, verbose=False)
+        print_scores()
+
+    # Print resulting network and post-scores
     network.gng.print_nodes()
-
-    for _ in range(100):
-        network.train(columns, 1, fraction=1.0, verbose=False)
-        print("Posttraining real score: %f" % evaluate(network, columns))
-        print("Posttraining random score: %f" % evaluate(network, random_columns))
-
-    network.gng.print_nodes()
-
-    print("Posttraining real score: %f" % evaluate(network, columns, verbose=False))
-    print("Posttraining random score: %f" % evaluate(network, random_columns))
+    print_scores()
 
 if __name__ == "__main__":
     #ga_main()

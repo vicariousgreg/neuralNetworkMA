@@ -1,18 +1,20 @@
 from gng import GrowingNeuralGas
 from random import shuffle
 
+def gen_columns(sequences, length, indices):
+    for i in range(length):
+        counts = dict(zip(self.alphabet, [0] * len(self.alphabet)))
+        for seq,start in zip(sequences, indices):
+            counts[seq[start+i]] += 1
+        yield counts.values()
+
 class Network:
     def __init__(self, alphabet):
         self.alphabet = alphabet
 
     def evaluate(self, sequences, length, indices):
-        score = 0
-        for i in range(length):
-            counts = dict(zip(self.alphabet, [0] * len(self.alphabet)))
-            for seq,start in zip(sequences, indices):
-                counts[seq[start+i]] += 1
-            score += max(counts.values())
-        return score
+        return sum(max(column)
+            for column in gen_columns(sequences, length, indices))
 
 class GNGNetwork:
     def __init__(self, alphabet, size=20, verbose=False):
@@ -32,21 +34,17 @@ class GNGNetwork:
         self.gng.lock(True)
 
     def evaluate(self, sequences, length, indices):
-        score = 0
-        for i in range(length):
-            counts = dict(zip(self.alphabet, [0] * len(self.alphabet)))
-            for seq,start in zip(sequences, indices):
-                counts[seq[start+i]] += 1.0
-            score += self.evaluate_column([x / len(sequences) for x in counts.values()])
-        return score
+        return sum(self.evaluate(column)
+            for column in gen_columns(sequences, length, indices))
 
     def evaluate_column(self, column, verbose=False):
         output = self.gng.feedforward(column)
         active = self.gng.active_neurons
         output = [o for o,a in zip(output,active) if a]
+        result = max(output) ** 2
         if verbose:
             print(" ".join("%.4f" % x if x > 0.0 else "      " for x in column))
-            print(" ".join("%.4f" % x for x in output))
-            #print("%.4f" % max(output))
+            #print(" ".join("%.4f" % x for x in output))
+            print("Max output: %.4f" % result)
             print("")
-        return max(output)
+        return result

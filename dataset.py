@@ -61,17 +61,16 @@ class SequenceCluster:
         return columns
 
 class Dataset:
-    def __init__(self, alphabet, directory):
+    def __init__(self, alphabet, paths):
         self.alphabet = alphabet
         self.sequence_clusters = []
         self.columns = []
 
-        for f in listdir(directory):
-            path = "%s/%s" % (directory, f)
+        for path in paths:
             #print(path)
             filtered = FilterSequences(path)
             #print(filtered.AlignmentEntry)
-            if len(filtered.sequences) <= 20: continue
+            if len(filtered.sequences) <= 10: continue
 
             try:
                 cluster = SequenceCluster(alphabet,
@@ -84,6 +83,18 @@ class Dataset:
                 print("Invalid data in %s.  Skipping..." % path)
         self.calc_statistics()
         self.generate_random_columns(len(self.columns))
+
+    @staticmethod
+    def create_dataset(alphabet, directory):
+        return Dataset(alphabet,
+            ("%s/%s" % (directory, f) for f in listdir(directory)))
+
+    @staticmethod
+    def create_split_dataset(alphabet, directory, training_fraction=0.7):
+        files = ["%s/%s" % (directory, f) for f in listdir(directory)]
+        random.shuffle(files)
+        split = int(len(files) * training_fraction)
+        return Dataset(alphabet, files[:split]), Dataset(alphabet, files[split:])
 
     def get_columns(self):
         return self.columns
@@ -178,54 +189,3 @@ class Dataset:
         # Average Column
         print("Average column:")
         print(" ".join("%.4f" % x for x in self.average_column))
-
-def gen_sequences(alphabet, num_sequences, length, seed_length=0, mut_rate=None):
-    print("Generating %d sequences of length %d..." % (num_sequences, length))
-    seqs = [[random.choice(alphabet) for _ in range(length)]
-            for _ in range(num_sequences)]
-
-    indices = []
-    if seed_length > 0:
-        seed = [random.choice(alphabet) for _ in range(seed_length)]
-        print("Planting seed... (%s)" % "".join(seed))
-        for seq in seqs:
-            start = random.randint(0, length-seed_length-1)
-            indices.append(start)
-            for i in range(seed_length):
-                if mut_rate and random.random() < mut_rate:
-                    seq[start+i] = random.choice(alphabet)
-                else:
-                    seq[start+i] = seed[i]
-    return ["".join(seq) for seq in seqs], indices
-
-def generate_dataset():
-    dataset = Dataset(get_nucleotides())
-
-    num_sequences = 100
-    sequence_length = 100
-    sub_length = 10
-    sequences,indices = gen_sequences(get_nucleotides(), num_sequences, sequence_length, seed_length=sub_length, mut_rate=0.25)
-
-    seq_ids = [dataset.add_sequence(sequence) for sequence in sequences]
-    dataset.add_alignment(seq_ids, indices, sub_length)
-
-    return dataset
-
-def generate_random_columns(alphabet, num_columns):
-    columns = []
-    for _ in range(num_columns):
-        column = [random.random() for x in range(len(alphabet))]
-        total = sum(x for x in column)
-        columns.append([FACTOR * x / total for x in column])
-    return columns
-
-def test():
-    dataset = Dataset(get_amino_acids(), "data")
-    print("Sequence_clusters: %d" % len(dataset.sequence_clusters))
-    print("Columns: %d" % len(dataset.get_columns()))
-
-    s = 0
-    for cluster in dataset.sequence_clusters:
-        for length,indices in cluster.alignments:
-            s += length
-    print(s)

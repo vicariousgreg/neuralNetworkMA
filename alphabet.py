@@ -2,14 +2,7 @@ def get_nucleotides():
     return "ACTG"
 
 def get_amino_acids():
-    # Amino acid abbreviations
     return "GPAVLIMCFYWHKRQNEDST"
-
-    # Plus X for unknown
-    #return "GPAVLIMCFYWHKRQNEDSTX"
-
-    # Plus X and B/Z
-    #return "GPAVLIMCFYWHKRQNEDSTXBZ"
 
 def handle_special_letters(alphabet, counts, letter):
     if alphabet == get_nucleotides():

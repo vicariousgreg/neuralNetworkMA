@@ -94,7 +94,7 @@ class GrowingNeuralGas:
         self.active_neurons[index] = False
         self.num_active_neurons -= 1
         if self.verbose: print("removed neuron (size %d)" % self.num_active_neurons)
-        print("removed neuron (size %d)" % self.num_active_neurons)
+        #print("removed neuron (size %d)" % self.num_active_neurons)
 
     def add_neuron(self):
         n = self.active_neurons.index(False)
@@ -102,7 +102,7 @@ class GrowingNeuralGas:
         self.num_active_neurons += 1
 
         if self.verbose: print("added neuron (size %d)" % self.num_active_neurons)
-        print("added neuron (size %d)" % self.num_active_neurons)
+        #print("added neuron (size %d)" % self.num_active_neurons)
         if self.verbose: print(max(self.error))
         return n
 
@@ -123,7 +123,8 @@ class GrowingNeuralGas:
                 d = distance(self.locations[i], values)
                 self.distances[i] = d
                 #self.output[i] = 1.0 / d
-                self.output[i] = rbf(d, 0.075)
+                self.output[i] = rbf(d, 0.05)
+                #self.output[i] = rbf(d, 0.075)
                 #self.output[i] = rbf(d, 0.1)
 
         # If unlocked, perform additional computation for learning.
