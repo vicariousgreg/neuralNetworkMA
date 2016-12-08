@@ -85,8 +85,8 @@ def gng_main():
 
     network.gng.print_nodes()
 
-    for _ in range(5):
-        network.train(columns, 1, verbose=False)
+    for _ in range(100):
+        network.train(columns, 1, fraction=0.25, verbose=False)
         print("Posttraining real score: %f" % evaluate(network, columns))
         print("Posttraining random score: %f" % \
             #evaluate(network, dataset.get_unaligned_columns(max_count=len(columns))))

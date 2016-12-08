@@ -20,14 +20,14 @@ class GNGNetwork:
         self.alphabet = alphabet
         self.gng.lock(True)
 
-    def train(self, columns, iterations, verbose=False):
+    def train(self, columns, iterations, fraction=1.0, verbose=False):
         if verbose: print("Training GNG network (iterations: %d)..." % iterations)
         self.gng.lock(False)
         indices = list(range(len(columns)))
         for _ in range(iterations):
             shuffle(indices)
             if verbose: print("Iter %4d" % _)
-            for i in indices:
+            for i in indices[:int(fraction * len(indices))]:
                 self.gng.feedforward(columns[i])
         self.gng.lock(True)
 

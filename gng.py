@@ -2,6 +2,7 @@ import random
 import numpy
 from numpy.random import rand
 from math import exp
+import pickle
 
 def distance(a,b):
     d = 0.0
@@ -18,8 +19,8 @@ def move(origin, destination, factor, dest_array):
         dest_array[i] = origin[i] + ((destination[i]-origin[i])*factor)
 
 class GrowingNeuralGas:
-    def __init__(self, size, seed_size=2, es=0.05, en=0.0005, beta=0.9999,
-                       max_age=50, error_threshold=10.0, feature_length=13, verbose=False):
+    def __init__(self, size, seed_size=2, es=0.05, en=0.0005, beta=0.99999,
+                       max_age=25, error_threshold=10.0, feature_length=13, verbose=False):
         self.size = size
         self.feature_length = feature_length
         self.output = numpy.zeros(self.size)
@@ -40,7 +41,6 @@ class GrowingNeuralGas:
         # Error threshold for adding new nodes
         self.error_threshold = error_threshold
 
-        self.means = numpy.zeros(self.size)
         self.distances = numpy.zeros(self.size)
         self.active_neurons = [False] * self.size
         self.num_active_neurons = 0
@@ -67,19 +67,21 @@ class GrowingNeuralGas:
                 if i != j:
                     self.set_edge_age(i, j, 0)
 
-        # Calculate means
-        for i in range(seed_size):
-            self.recalculate_mean(i)
+    def save(self, filename):
+        pickle.dump(self, open( filename, "wb" ) )
+
+    @staticmethod
+    def load(filename):
+        return pickle.load( open( filename, "rb" ) )
 
     def lock(self, value=True):
         self.locked = value
 
     def print_nodes(self):
         print("GNG Nodes:")
-        for i,(mean,loc) in enumerate(zip(self.means, self.locations)):
+        for i,loc in enumerate(self.locations):
             if self.active_neurons[i]:
                 print("Node %3d" % i)
-                print("  (mean %f)" % mean)
                 neighbors = len(tuple(n for n in range(self.size) if self.edges[i][n] >= 0))
                 print("  (neighbors %d)" % neighbors)
                 print("   %s" % loc)
@@ -87,17 +89,6 @@ class GrowingNeuralGas:
     def insertion_criteria(self):
         return self.num_active_neurons < self.size and \
             any(error > self.error_threshold for error in self.error)
-
-    def recalculate_mean(self, index):
-        # Set RBF mean of moved neurons to avg dist to neighbors
-        # Calculate average distance to neighbors
-        total_distance = 0.0
-        count = 0
-        for n in range(self.size):
-            if self.edges[index][n] >= 0:
-                count += 1
-                total_distance += distance(self.locations[index], self.locations[n]) ** 0.5
-        self.means[index] = (total_distance / count)
 
     def remove_neuron(self, index):
         self.active_neurons[index] = False
@@ -131,7 +122,8 @@ class GrowingNeuralGas:
             if self.active_neurons[i]:
                 d = distance(self.locations[i], values)
                 self.distances[i] = d
-                self.output[i] = rbf(d, self.means[i])
+                #self.output[i] = 1.0 / d
+                self.output[i] = rbf(d, 0.075)
 
         # If unlocked, perform additional computation for learning.
         if not self.locked: 
@@ -158,10 +150,6 @@ class GrowingNeuralGas:
             if self.edges[closest_neuron][i] >= 0:
                 changed.append(i)
                 move(self.locations[i], last_input, self.en, self.locations[i])
-
-        # Set RBF mean of moved neurons to avg dist to neighbors
-        for i in changed:
-            self.recalculate_mean(i)
 
         # Increment s's edge ages
         # Expire edges if they are too old
@@ -211,11 +199,6 @@ class GrowingNeuralGas:
             self.set_edge_age(u, worst_neighbor, -1)
             self.set_edge_age(u, n, 0)
             self.set_edge_age(n, worst_neighbor, 0)
-
-            # Recalculate means
-            self.recalculate_mean(u)
-            self.recalculate_mean(n)
-            self.recalculate_mean(worst_neighbor)
 
             # Recalculate errors
             self.error[u] /= 2
