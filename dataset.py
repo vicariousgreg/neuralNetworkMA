@@ -76,35 +76,31 @@ class Dataset:
             try:
                 cluster = SequenceCluster(alphabet,
                     filtered.sequences, filtered.AlignmentEntry)
-                self.sequence_clusters.append(cluster)
-                self.columns += cluster.columns
+                if len(cluster.columns) > 0:
+                    self.sequence_clusters.append(cluster)
+                    self.columns += cluster.columns
             except ValueError as e:
                 print(e)
                 print("Invalid data in %s.  Skipping..." % path)
         self.calc_statistics()
+        self.generate_random_columns(len(self.columns))
 
     def get_columns(self):
         return self.columns
 
-    def get_unaligned_columns(self, max_count=None):
-        count = 0
-        for cluster in self.sequence_clusters:
-            for col in cluster.get_unaligned_columns(self.alphabet):
-                count += 1
-                yield col
-            if max_count is not None and count > max_count: break
+    def get_random_columns(self):
+        return self.random_columns
 
-    def get_random_columns(self, count, num_seq=None):
+    def generate_random_columns(self, count, num_seq=None):
         if num_seq is None: num_seq = int(self.average_seq_per_alignment)
 
-        columns = []
+        self.random_columns = []
         for _ in range(count):
             counts = dict(zip(self.alphabet, [0] * len(self.alphabet)))
             for i in range(num_seq):
                 counts[self.alphabet[
                     randomCategory(self.overall_letter_distribution)]] += 1.0
-            columns.append([FACTOR * x / num_seq for x in counts.values()])
-        return columns
+            self.random_columns.append([FACTOR * x / num_seq for x in counts.values()])
 
     def calc_statistics(self):
         # Alphabet distribution overall

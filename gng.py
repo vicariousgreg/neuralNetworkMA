@@ -124,6 +124,7 @@ class GrowingNeuralGas:
                 self.distances[i] = d
                 #self.output[i] = 1.0 / d
                 self.output[i] = rbf(d, 0.075)
+                #self.output[i] = rbf(d, 0.1)
 
         # If unlocked, perform additional computation for learning.
         if not self.locked: 

@@ -74,30 +74,25 @@ def gng_main():
     dataset = Dataset(get_amino_acids(), "data")
     dataset.print_statistics()
     columns = dataset.get_columns()[:1000]
+    random_columns = dataset.get_random_columns()[:1000]
 
     network = GNGNetwork(get_amino_acids(), size=200, verbose=False)
 
     print("Columns: %d" % len(columns))
     print("Pretraining real score: %f" % evaluate(network, columns, verbose=False))
-    print("Pretraining random score: %f" % \
-        #evaluate(network, dataset.get_unaligned_columns(max_count=len(columns))))
-        evaluate(network, dataset.get_random_columns(len(columns))))
+    print("Pretraining random score: %f" % evaluate(network, random_columns))
 
     network.gng.print_nodes()
 
     for _ in range(100):
-        network.train(columns, 1, fraction=0.25, verbose=False)
+        network.train(columns, 1, fraction=1.0, verbose=False)
         print("Posttraining real score: %f" % evaluate(network, columns))
-        print("Posttraining random score: %f" % \
-            #evaluate(network, dataset.get_unaligned_columns(max_count=len(columns))))
-            evaluate(network, dataset.get_random_columns(len(columns))))
+        print("Posttraining random score: %f" % evaluate(network, random_columns))
 
     network.gng.print_nodes()
 
     print("Posttraining real score: %f" % evaluate(network, columns, verbose=False))
-    print("Posttraining random score: %f" % \
-        #evaluate(network, dataset.get_unaligned_columns(max_count=len(columns))))
-        evaluate(network, dataset.get_random_columns(len(columns)), verbose=False))
+    print("Posttraining random score: %f" % evaluate(network, random_columns))
 
 if __name__ == "__main__":
     #ga_main()
