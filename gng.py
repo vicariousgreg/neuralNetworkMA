@@ -1,25 +1,28 @@
 import random
-import copy
-from numpy import array, zeros, ones, matrix, dot, multiply, add, subtract, copyto
+import numpy
 from numpy.random import rand
 from math import exp
 
 def distance(a,b):
-    return sum((a[i] - b[i])**2 for i in range(len(a)))
+    d = 0.0
+    for i in range(len(a)):
+        d += (a[i] - b[i])**2
+    return d
 
 def rbf(distance, mean):
     if mean == 0: return 0
     return exp(-distance / (2 * (mean**2)))
 
-def move(location, destination, factor):
-    return [location[i] + ((destination[i]-location[i])*factor)
-                for i in range(len(location))]
+def move(origin, destination, factor, dest_array):
+    for i in range(len(origin)):
+        dest_array[i] = origin[i] + ((destination[i]-origin[i])*factor)
 
 class GrowingNeuralGas:
     def __init__(self, size, seed_size=2, es=0.05, en=0.0005, beta=0.9999,
-                       max_age=25, error_threshold=25.0, feature_length=13, verbose=False):
+                       max_age=50, error_threshold=10.0, feature_length=13, verbose=False):
         self.size = size
-        self.output = zeros(self.size)
+        self.feature_length = feature_length
+        self.output = numpy.zeros(self.size)
         self.error = [0.0 for _ in range(self.size)]
         self.verbose = verbose
         self.locked = False
@@ -37,18 +40,18 @@ class GrowingNeuralGas:
         # Error threshold for adding new nodes
         self.error_threshold = error_threshold
 
-        self.means = zeros(self.size)
-        self.distances = zeros(self.size)
+        self.means = numpy.zeros(self.size)
+        self.distances = numpy.zeros(self.size)
         self.active_neurons = [False] * self.size
         self.num_active_neurons = 0
 
         # Neuron locations
-        self.locations = zeros((self.size, feature_length))
+        self.locations = numpy.zeros((self.size, feature_length))
 
         # Edge age matrix
         # Be sure to update symmetrically
         # -1 means no edge, otherwise value is age
-        self.edges = zeros((self.size, self.size))
+        self.edges = numpy.zeros((self.size, self.size))
         self.edges.fill(-1)
 
         # Create seed neurons.
@@ -71,6 +74,16 @@ class GrowingNeuralGas:
     def lock(self, value=True):
         self.locked = value
 
+    def print_nodes(self):
+        print("GNG Nodes:")
+        for i,(mean,loc) in enumerate(zip(self.means, self.locations)):
+            if self.active_neurons[i]:
+                print("Node %3d" % i)
+                print("  (mean %f)" % mean)
+                neighbors = len(tuple(n for n in range(self.size) if self.edges[i][n] >= 0))
+                print("  (neighbors %d)" % neighbors)
+                print("   %s" % loc)
+
     def insertion_criteria(self):
         return self.num_active_neurons < self.size and \
             any(error > self.error_threshold for error in self.error)
@@ -84,12 +97,13 @@ class GrowingNeuralGas:
             if self.edges[index][n] >= 0:
                 count += 1
                 total_distance += distance(self.locations[index], self.locations[n]) ** 0.5
-        self.means[index] = total_distance / count
+        self.means[index] = (total_distance / count)
 
     def remove_neuron(self, index):
         self.active_neurons[index] = False
         self.num_active_neurons -= 1
         if self.verbose: print("removed neuron (size %d)" % self.num_active_neurons)
+        print("removed neuron (size %d)" % self.num_active_neurons)
 
     def add_neuron(self):
         n = self.active_neurons.index(False)
@@ -97,6 +111,7 @@ class GrowingNeuralGas:
         self.num_active_neurons += 1
 
         if self.verbose: print("added neuron (size %d)" % self.num_active_neurons)
+        print("added neuron (size %d)" % self.num_active_neurons)
         if self.verbose: print(max(self.error))
         return n
 
@@ -113,10 +128,10 @@ class GrowingNeuralGas:
 
         # Calculate distances and activate neurons.
         for i in range(self.size):
-            if not self.active_neurons[i]: continue
-            d = distance(self.locations[i], values)
-            self.distances[i] = d
-            self.output[i] = rbf(d, self.means[i])
+            if self.active_neurons[i]:
+                d = distance(self.locations[i], values)
+                self.distances[i] = d
+                self.output[i] = rbf(d, self.means[i])
 
         # If unlocked, perform additional computation for learning.
         if not self.locked: 
@@ -126,7 +141,7 @@ class GrowingNeuralGas:
             while not self.active_neurons[closest[1]]: del closest[1]
 
             # Add error to closest neuron
-            self.error[closest[0]] += self.distances[closest[0]]
+            self.error[closest[0]] += self.distances[closest[0]] ** 0.5
 
             # Adjust weights
             self.adjust_weights(values, closest[0], closest[1])
@@ -135,15 +150,14 @@ class GrowingNeuralGas:
 
     def adjust_weights(self, last_input, closest_neuron, second_closest_neuron):
         # Move closest neuron closer to input vector by es
-        self.locations[closest_neuron] = \
-            move(self.locations[closest_neuron], last_input, self.es)
+        move(self.locations[closest_neuron], last_input, self.es,
+             self.locations[closest_neuron])
         # Move s's neighbors closer by en
         changed = [closest_neuron]
         for i in range(self.size):
             if self.edges[closest_neuron][i] >= 0:
                 changed.append(i)
-                self.locations[i] = \
-                    move(self.locations[i], last_input, self.en)
+                move(self.locations[i], last_input, self.en, self.locations[i])
 
         # Set RBF mean of moved neurons to avg dist to neighbors
         for i in changed:
@@ -166,14 +180,17 @@ class GrowingNeuralGas:
         # Remove neurons that don't have edges
         for i in range(self.size):
             if self.active_neurons[i]:
-                if all(self.edges[i][n] < 0 for n in range(self.size)):
-                    self.remove_neuron(i)
+                dead = True
+                for n in range(self.size):
+                    if self.edges[i][n] >= 0:
+                        dead = False
+                        break
+                if dead: self.remove_neuron(i)
 
         # Insert new neuron
         if self.insertion_criteria():
             # Find neuron with largest error
-            max_error = sorted(self.error)[-1]
-            u = self.error.index(max_error)
+            u = self.error.index(max(self.error))
 
             worst_neighbor = 0
             worst_error = 0
@@ -188,7 +205,7 @@ class GrowingNeuralGas:
             n = self.add_neuron()
 
             # Set location to midpoint
-            self.locations[n] = move(self.locations[u], self.locations[worst_neighbor], 0.5)
+            move(self.locations[u], last_input, 0.5, self.locations[n])
 
             # Set up edges
             self.set_edge_age(u, worst_neighbor, -1)

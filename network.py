@@ -40,7 +40,13 @@ class GNGNetwork:
             score += self.evaluate_column([x / len(sequences) for x in counts.values()])
         return score
 
-    def evaluate_column(self, column):
+    def evaluate_column(self, column, verbose=False):
         output = self.gng.feedforward(column)
         active = self.gng.active_neurons
-        return max([o for o,a in zip(output,active) if a])
+        output = [o for o,a in zip(output,active) if a]
+        if verbose:
+            print(" ".join("%.4f" % x if x > 0.0 else "      " for x in column))
+            print(" ".join("%.4f" % x for x in output))
+            #print("%.4f" % max(output))
+            print("")
+        return max(output)

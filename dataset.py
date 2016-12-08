@@ -3,6 +3,8 @@ from alphabet import get_nucleotides, get_amino_acids, handle_special_letters
 from readXml import FilterSequences
 from os import listdir
 
+FACTOR = 1.0
+
 def randomCategory(probs):
     r = random.random() # range: [0,1)
     total = 0           # range: [0,1]
@@ -38,7 +40,7 @@ class SequenceCluster:
                     except KeyError:
                         handle_special_letters(alphabet, counts, sequence[start+offset])
                         #raise ValueError("Invalid letter %s in sequence!" % sequence[start+offset])
-                self.columns.append([x / len(sequences) for x in counts.values()])
+                self.columns.append([FACTOR * x / len(sequences) for x in counts.values()])
 
     def get_unaligned_columns(self, alphabet):
         columns = []
@@ -54,7 +56,7 @@ class SequenceCluster:
                     counts[sequence[i]] += 1.0
                 except KeyError:
                     handle_special_letters(alphabet, counts, sequence[i])
-            columns.append([x / len(self.sequences) for x in counts.values()])
+            columns.append([FACTOR * x / len(self.sequences) for x in counts.values()])
             i += 1
         return columns
 
@@ -69,7 +71,7 @@ class Dataset:
             #print(path)
             filtered = FilterSequences(path)
             #print(filtered.AlignmentEntry)
-            if len(filtered.sequences) <= 10: continue
+            if len(filtered.sequences) <= 20: continue
 
             try:
                 cluster = SequenceCluster(alphabet,
@@ -101,7 +103,7 @@ class Dataset:
             for i in range(num_seq):
                 counts[self.alphabet[
                     randomCategory(self.overall_letter_distribution)]] += 1.0
-            columns.append([x / num_seq for x in counts.values()])
+            columns.append([FACTOR * x / num_seq for x in counts.values()])
         return columns
 
     def calc_statistics(self):
@@ -218,7 +220,7 @@ def generate_random_columns(alphabet, num_columns):
     for _ in range(num_columns):
         column = [random.random() for x in range(len(alphabet))]
         total = sum(x for x in column)
-        columns.append([x / total for x in column])
+        columns.append([FACTOR * x / total for x in column])
     return columns
 
 def test():

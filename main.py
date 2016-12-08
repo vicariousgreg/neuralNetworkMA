@@ -62,43 +62,42 @@ def ga_main():
 
     print_subsequences(sequences, sub_length, best)
 
-def evaluate(network, columns):
+def evaluate(network, columns, verbose=False):
     total_score = 0
     count = 0
     for column in columns:
         count += 1
-        #print(" ".join("%.4f" % x if x > 0.0 else "      " for x in column))
-        #print(column, network.evaluate_column(column))
-        total_score += network.evaluate_column(column)
+        total_score += network.evaluate_column(column, verbose=verbose)
     return total_score / count
 
 def gng_main():
     dataset = Dataset(get_amino_acids(), "data")
     dataset.print_statistics()
-    columns = dataset.get_columns()[:10000]
+    columns = dataset.get_columns()[:1000]
 
-    network = GNGNetwork(get_amino_acids(), size=100, verbose=False)
+    network = GNGNetwork(get_amino_acids(), size=200, verbose=False)
 
     print("Columns: %d" % len(columns))
-    score = evaluate(network, columns)
-    print("Pretraining real score: %f" % score)
+    print("Pretraining real score: %f" % evaluate(network, columns, verbose=False))
     print("Pretraining random score: %f" % \
         #evaluate(network, dataset.get_unaligned_columns(max_count=len(columns))))
         evaluate(network, dataset.get_random_columns(len(columns))))
 
-    print("GNG Nodes:")
-    for loc in network.gng.locations: print(loc)
+    network.gng.print_nodes()
 
-    network.train(columns, 50, verbose=True)
+    for _ in range(5):
+        network.train(columns, 1, verbose=False)
+        print("Posttraining real score: %f" % evaluate(network, columns))
+        print("Posttraining random score: %f" % \
+            #evaluate(network, dataset.get_unaligned_columns(max_count=len(columns))))
+            evaluate(network, dataset.get_random_columns(len(columns))))
 
-    print("GNG Nodes:")
-    for loc in network.gng.locations: print(loc)
+    network.gng.print_nodes()
 
-    score = evaluate(network, columns)
-    print("Posttraining real score: %f" % score)
+    print("Posttraining real score: %f" % evaluate(network, columns, verbose=False))
     print("Posttraining random score: %f" % \
         #evaluate(network, dataset.get_unaligned_columns(max_count=len(columns))))
-        evaluate(network, dataset.get_random_columns(len(columns))))
+        evaluate(network, dataset.get_random_columns(len(columns)), verbose=False))
 
 if __name__ == "__main__":
     #ga_main()
