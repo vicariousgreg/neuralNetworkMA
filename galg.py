@@ -69,11 +69,25 @@ class Individual:
              for x in max_gene_values])
 
     def mutate(self, rate, max_gene_values):
-        for i in range(len(self.chromosome)):
-            if random.random() < rate:
-                # Reset fitness and mutate
-                self.fitness = None
-                self.chromosome[i] = int(random.randint(0, max_gene_values[i]))
+        # Shift all indices
+        if random.random() < rate:
+            self.fitness = None
+            # Shift left
+            if random.random() < 0.5:
+                for i in range(len(self.chromosome)):
+                    self.chromosome[i] = max(0, self.chromosome[i])
+            # Shift right
+            else:
+                for i in range(len(self.chromosome)):
+                    self.chromosome[i] = min(max_gene_values[i], self.chromosome[i])
+
+        # Randomly change indices
+        else:
+            for i in range(len(self.chromosome)):
+                if random.random() < rate:
+                    # Reset fitness and mutate
+                    self.fitness = None
+                    self.chromosome[i] = int(random.randint(0, max_gene_values[i]))
 
     def crossover(self, other):
         return Individual(

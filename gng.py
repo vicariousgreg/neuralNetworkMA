@@ -2,7 +2,6 @@ import random
 import numpy
 from numpy.random import rand
 from math import exp
-import pickle
 
 def distance(a,b):
     d = 0.0
@@ -66,13 +65,6 @@ class GrowingNeuralGas:
             for j in range(seed_size):
                 if i != j:
                     self.set_edge_age(i, j, 0)
-
-    def save(self, filename):
-        pickle.dump(self, open( filename, "wb" ) )
-
-    @staticmethod
-    def load(filename):
-        return pickle.load( open( filename, "rb" ) )
 
     def lock(self, value=True):
         self.locked = value

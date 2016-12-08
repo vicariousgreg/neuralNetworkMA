@@ -1,7 +1,7 @@
 import random
 from galg import GeneticAlgorithm, Population, Selection, SelMethod
 from network import Network, GNGNetwork
-from dataset import Dataset
+from dataset import Dataset, SequenceCluster
 from alphabet import get_nucleotides, get_amino_acids
 
 def gen_sequences(alphabet, num_sequences, length, seed_length=0):
@@ -18,29 +18,27 @@ def gen_sequences(alphabet, num_sequences, length, seed_length=0):
                 seq[start+i] = seed[i]
     return ["".join(seq) for seq in seqs]
 
+def gen_cluster(num_sequences, sequence_length, sub_length):
+    sequences = gen_sequences(get_amino_acids(), num_sequences, sequence_length, seed_length=sub_length)
+    print_sequences(sequences)
+    return SequenceCluster(get_amino_acids(), sequences, [])
+
 def print_sequences(sequences):
     print("Sequences:")
     for seq in sequences: print("".join(seq))
     print("")
 
 def print_subsequences(sequences, length, indices):
-    print("Subsequences:")
+    print("\nSubsequences:")
     for seq,i in zip(sequences, indices):
         print(seq[i:i+length])
     print("")
 
-def ga_main():
-    # Sequences
-    num_sequences = 100
-    sequence_length = 100
-    sub_length = 10
-    sequences = gen_sequences(get_nucleotides(), num_sequences, sequence_length, seed_length=sub_length)
-    print_sequences(sequences)
-
+def ga_main(sequence_cluster, length, network):
     # Population
     pop_size = 500
     num_random = 50
-    pop = Population(Network(get_nucleotides()), sequences, sub_length, pop_size, num_random)
+    pop = Population(network, sequence_cluster.sequences, length, pop_size, num_random)
 
     # Genetic Algorithm
     #selection = Selection(SelMethod.truncation, 10)
@@ -60,7 +58,23 @@ def ga_main():
     iterations = 100
     best = galg.run(pop, num_iterations=iterations, verbose=True)
 
-    print_subsequences(sequences, sub_length, best)
+    print_subsequences(sequence_cluster.sequences, length, best)
+
+    print("Resulting indices:")
+    print(" ".join("%3d" % i for i in best))
+
+    def calc_diff(i_a, i_b):
+        return sum(((x-y) ** 2) for x,y in zip(i_a, i_b)) ** 0.5
+
+    print("\nActual alignment indices:")
+    comparisons = \
+        [(length, calc_diff(indices, best),
+         " ".join("%3d" % i for i in indices))
+         for length,indices in sequence_cluster.alignments]
+
+    for length,diff,indices in sorted(comparisons, key=lambda x:x[1]):
+        print("len: %3d diff: %11.6f\n  %s" % \
+            (length, diff, indices))
 
 def evaluate(network, columns, verbose=False):
     total_score = 0
@@ -72,7 +86,7 @@ def evaluate(network, columns, verbose=False):
 
 def gng_main():
     # Parameters
-    max_columns = 50000
+    max_columns = 1000
     network_size = 200
     iterations = 100
     training_fraction = 0.05
@@ -96,9 +110,10 @@ def gng_main():
     # Create network
     network = GNGNetwork(get_amino_acids(), size=network_size, verbose=False)
 
-    def print_scores():
-        print("Scores: Training[ %.6f / %.6f ]  Test[ %.6f / %.6f ]" % \
-            (evaluate(network, training_columns),
+    def print_scores(iteration):
+        print("Scores (%4d): Training[ %.6f / %.6f ]  Test[ %.6f / %.6f ]" % \
+            (iteration,
+             evaluate(network, training_columns),
              evaluate(network, training_random_columns),
              evaluate(network, test_columns),
              evaluate(network, test_random_columns)))
@@ -107,17 +122,26 @@ def gng_main():
     print("Columns: Training[ %6d / %6d ]  Test[ %6d / %6d]" % \
         (len(training_columns), len(training_random_columns),
          len(test_columns),      len(test_random_columns)))
-    print_scores()
+    print_scores(0)
 
     # Perform training
     for _ in range(iterations):
         network.train(training_columns, 1, fraction=training_fraction, verbose=False)
-        print_scores()
+        print_scores(_)
 
     # Print resulting network and post-scores
     network.gng.print_nodes()
-    print_scores()
+    print_scores(_+1)
+
+    return training_dataset, test_dataset, network
 
 if __name__ == "__main__":
-    #ga_main()
-    gng_main()
+    train, test, network = gng_main()
+
+    # Create sequence cluster
+    sub_length=10
+    #cluster = gen_cluster(num_sequences=100, sequence_length=100, sub_length=sub_length)
+    cluster = test.sequence_clusters[0]
+
+    #ga_main(cluster, sub_length, Network(get_amino_acids()))
+    ga_main(cluster, sub_length, network)
