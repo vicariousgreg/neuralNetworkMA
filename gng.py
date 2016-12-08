@@ -8,6 +8,7 @@ def distance(a,b):
     return sum((a[i] - b[i])**2 for i in range(len(a)))
 
 def rbf(distance, mean):
+    if mean == 0: return 0
     return exp(-distance / (2 * (mean**2)))
 
 def move(location, destination, factor):

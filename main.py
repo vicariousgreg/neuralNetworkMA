@@ -1,7 +1,7 @@
 import random
 from galg import GeneticAlgorithm, Population, Selection, SelMethod
 from network import Network, GNGNetwork
-from dataset import Dataset, generate_dataset
+from dataset import Dataset, generate_dataset, generate_random_columns
 from alphabet import get_nucleotides, get_amino_acids
 
 def gen_sequences(alphabet, num_sequences, length, seed_length=0):
@@ -62,29 +62,43 @@ def ga_main():
 
     print_subsequences(sequences, sub_length, best)
 
-def gng_main():
-    dataset = Dataset(get_amino_acids(), "data")
-    columns = dataset.get_columns()[:1000]
-
-    network = GNGNetwork(get_amino_acids(), size=20, verbose=False)
-    print("Columns: %d" % len(columns))
+def evaluate(network, columns):
     total_score = 0
+    count = 0
     for column in columns:
+        count += 1
         #print(" ".join("%.4f" % x if x > 0.0 else "      " for x in column))
         #print(column, network.evaluate_column(column))
         total_score += network.evaluate_column(column)
-    print("Pretraining total score: %f" % (total_score / len(columns)))
-    network.train(columns, 10)
+    return total_score / count
+
+def gng_main():
+    dataset = Dataset(get_amino_acids(), "data")
+    dataset.print_statistics()
+    columns = dataset.get_columns()[:10000]
+
+    network = GNGNetwork(get_amino_acids(), size=100, verbose=False)
+
+    print("Columns: %d" % len(columns))
+    score = evaluate(network, columns)
+    print("Pretraining real score: %f" % score)
+    print("Pretraining random score: %f" % \
+        #evaluate(network, dataset.get_unaligned_columns(max_count=len(columns))))
+        evaluate(network, dataset.get_random_columns(len(columns))))
 
     print("GNG Nodes:")
     for loc in network.gng.locations: print(loc)
 
-    print("Columns:")
-    total_score = 0
-    for column in columns:
-        #print(column, network.evaluate_column(column))
-        total_score += network.evaluate_column(column)
-    print("Posttraining total score: %f" % (total_score / len(columns)))
+    network.train(columns, 50, verbose=True)
+
+    print("GNG Nodes:")
+    for loc in network.gng.locations: print(loc)
+
+    score = evaluate(network, columns)
+    print("Posttraining real score: %f" % score)
+    print("Posttraining random score: %f" % \
+        #evaluate(network, dataset.get_unaligned_columns(max_count=len(columns))))
+        evaluate(network, dataset.get_random_columns(len(columns))))
 
 if __name__ == "__main__":
     #ga_main()

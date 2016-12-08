@@ -51,7 +51,8 @@ class FilterSequences:
                adjustIndex = sequenceData.count('-', 0, startIndex)
                multi_alignment.append(startIndex - adjustIndex)
            if add_sequence == 1:
-               self.sequences.append(sequenceData.replace("-","").upper().strip())
+               self.sequences.append(
+                   sequenceData.replace("-","").replace("\n", "").upper().strip())
         #print stopIndex
         #print startIndex
         self.AlignmentEntry.append((alignLen[i], multi_alignment))

@@ -1,7 +1,16 @@
 import random
-from alphabet import get_nucleotides, get_amino_acids
+from alphabet import get_nucleotides, get_amino_acids, handle_special_letters
 from readXml import FilterSequences
 from os import listdir
+
+def randomCategory(probs):
+    r = random.random() # range: [0,1)
+    total = 0           # range: [0,1]
+    for i,prob in enumerate(probs):
+        total += prob
+        if total>r:
+            return i
+    raise Exception('distribution not normalized: {probs}'.format(probs=probs))
 
 class SequenceCluster:
     def __init__(self, alphabet, sequences, alignments):
@@ -27,19 +36,41 @@ class SequenceCluster:
                     try:
                         counts[sequence[start+offset]] += 1.0
                     except KeyError:
-                        raise ValueError("Invalid letter %s in sequence!" % sequence[start+offset])
+                        handle_special_letters(alphabet, counts, sequence[start+offset])
+                        #raise ValueError("Invalid letter %s in sequence!" % sequence[start+offset])
                 self.columns.append([x / len(sequences) for x in counts.values()])
+
+    def get_unaligned_columns(self, alphabet):
+        columns = []
+        i = 0
+        done = False
+        while not done:
+            counts = dict(zip(alphabet, [0] * len(alphabet)))
+            for sequence in self.sequences:
+                if i >= len(sequence):
+                    done = True
+                    break
+                try:
+                    counts[sequence[i]] += 1.0
+                except KeyError:
+                    handle_special_letters(alphabet, counts, sequence[i])
+            columns.append([x / len(self.sequences) for x in counts.values()])
+            i += 1
+        return columns
 
 class Dataset:
     def __init__(self, alphabet, directory):
         self.alphabet = alphabet
         self.sequence_clusters = []
         self.columns = []
+
         for f in listdir(directory):
             path = "%s/%s" % (directory, f)
             #print(path)
             filtered = FilterSequences(path)
             #print(filtered.AlignmentEntry)
+            if len(filtered.sequences) <= 10: continue
+
             try:
                 cluster = SequenceCluster(alphabet,
                     filtered.sequences, filtered.AlignmentEntry)
@@ -48,9 +79,107 @@ class Dataset:
             except ValueError as e:
                 print(e)
                 print("Invalid data in %s.  Skipping..." % path)
+        self.calc_statistics()
 
     def get_columns(self):
         return self.columns
+
+    def get_unaligned_columns(self, max_count=None):
+        count = 0
+        for cluster in self.sequence_clusters:
+            for col in cluster.get_unaligned_columns(self.alphabet):
+                count += 1
+                yield col
+            if max_count is not None and count > max_count: break
+
+    def get_random_columns(self, count, num_seq=None):
+        if num_seq is None: num_seq = int(self.average_seq_per_alignment)
+
+        columns = []
+        for _ in range(count):
+            counts = dict(zip(self.alphabet, [0] * len(self.alphabet)))
+            for i in range(num_seq):
+                counts[self.alphabet[
+                    randomCategory(self.overall_letter_distribution)]] += 1.0
+            columns.append([x / num_seq for x in counts.values()])
+        return columns
+
+    def calc_statistics(self):
+        # Alphabet distribution overall
+        counts = dict(zip(self.alphabet, [0] * len(self.alphabet)))
+        for cluster in self.sequence_clusters:
+            for sequence in cluster.sequences:
+                for i in range(len(sequence)):
+                    try:
+                        counts[sequence[i]] += 1.0
+                    except KeyError:
+                        handle_special_letters(self.alphabet, counts, sequence[i])
+        total = sum(counts.values())
+        self.overall_letter_distribution = \
+            [(counts[letter] / total) for letter in self.alphabet]
+
+        # Alphabet distribution in alignments
+        counts = dict(zip(self.alphabet, [0] * len(self.alphabet)))
+        for cluster in self.sequence_clusters:
+            for length,indices in cluster.alignments:
+                for sequence,start in zip(cluster.sequences, indices):
+                    if start is not None:
+                        for offset in range(length):
+                            try:
+                                counts[sequence[start+offset]] += 1.0
+                            except KeyError:
+                                handle_special_letters(self.alphabet, counts, sequence[start+offset])
+        total = sum(counts.values())
+        self.alignment_letter_distribution = \
+            [(counts[letter] / total) for letter in self.alphabet]
+
+        # Number of alignments
+        self.num_alignments = \
+            sum(len(cluster.alignments)
+            for cluster in self.sequence_clusters)
+
+        # Number of sequences and clusters
+        self.num_sequences = sum(len(cluster.sequences) for cluster in self.sequence_clusters)
+
+        # Average number of sequences per alignment
+        self.average_seq_per_alignment = \
+            (sum(len([i for i in indices if i is not None])
+            for cluster in self.sequence_clusters
+            for length,indices in cluster.alignments) / self.num_alignments)
+
+        # Average column
+        self.average_column = [0.0] * len(self.alphabet)
+        for column in self.columns:
+            for i in range(len(column)):
+                self.average_column[i] += column[i]
+        for i in range(len(self.average_column)):
+            self.average_column[i] /= len(self.columns)
+
+    def print_statistics(self):
+        # Alphabet distribution overall
+        print("Overall letter distribution:")
+        print(" ".join("%.4f" % x for x in self.overall_letter_distribution))
+
+        # Alphabet distribution in alignments
+        print("Alignment letter distribution:")
+        print(" ".join("%.4f" % x for x in self.alignment_letter_distribution))
+
+        # Number of alignments
+        print("Total alignment count: %d" % self.num_alignments)
+
+        # Number of columns
+        print("Total column count: %d" % len(self.columns))
+
+        # Number of sequences and clusters
+        print("Total sequences: %d" % self.num_sequences)
+        print("Total sequence clusters: %d" % len(self.sequence_clusters))
+
+        # Average number of sequences per alignment
+        print("Average sequences per alignment: %f" % self.average_seq_per_alignment)
+
+        # Average Column
+        print("Average column:")
+        print(" ".join("%.4f" % x for x in self.average_column))
 
 def gen_sequences(alphabet, num_sequences, length, seed_length=0, mut_rate=None):
     print("Generating %d sequences of length %d..." % (num_sequences, length))
@@ -83,6 +212,14 @@ def generate_dataset():
     dataset.add_alignment(seq_ids, indices, sub_length)
 
     return dataset
+
+def generate_random_columns(alphabet, num_columns):
+    columns = []
+    for _ in range(num_columns):
+        column = [random.random() for x in range(len(alphabet))]
+        total = sum(x for x in column)
+        columns.append([x / total for x in column])
+    return columns
 
 def test():
     dataset = Dataset(get_amino_acids(), "data")
