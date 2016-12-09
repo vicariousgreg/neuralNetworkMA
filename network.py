@@ -22,8 +22,8 @@ class Network:
             for column in gen_columns(self.alphabet, sequences, length, indices))
 
 class GNGNetwork:
-    def __init__(self, alphabet, size=20, verbose=False):
-        self.gng = GrowingNeuralGas(size, feature_length=len(alphabet), verbose=verbose)
+    def __init__(self, alphabet, size=20, mean=0.075, verbose=False):
+        self.gng = GrowingNeuralGas(size, mean=mean, feature_length=len(alphabet), verbose=verbose)
         self.alphabet = alphabet
         self.run_iterations = 0
         self.gng.lock(True)
@@ -32,7 +32,7 @@ class GNGNetwork:
         pickle.dump(self, open( filename, "wb" ) )
 
     @staticmethod
-    def load(filename):
+    def load(filename, mean):
         return pickle.load( open( filename, "rb" ) )
 
     def train(self, columns, iterations, fraction=1.0, verbose=False):

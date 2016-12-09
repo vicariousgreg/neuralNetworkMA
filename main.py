@@ -1,4 +1,5 @@
 import random
+from sys import argv
 from time import time
 from galg import GeneticAlgorithm, Population, Selection, SelMethod
 from network import Network, GNGNetwork
@@ -89,7 +90,7 @@ def evaluate(network, columns, verbose=False):
         total_score += network.evaluate_column(column, verbose=verbose)
     return total_score / count
 
-def gng_main(training_dataset, test_dataset, network_size, time_limit):
+def gng_main(training_dataset, test_dataset, network_size, mean, time_limit):
     # Parameters
     max_columns = 50000 # Use all
     training_fraction = 0.05
@@ -109,7 +110,7 @@ def gng_main(training_dataset, test_dataset, network_size, time_limit):
     test_random_columns = test_dataset.get_random_columns()[:max_columns]
 
     # Create network
-    network = GNGNetwork(get_amino_acids(), size=network_size, verbose=False)
+    network = GNGNetwork(get_amino_acids(), size=network_size, mean=mean, verbose=False)
 
     def print_scores(iteration):
         print("Scores (%4d): Training[ %.6f / %.6f ]  Test[ %.6f / %.6f ]" % \
@@ -149,29 +150,43 @@ def evaluate_network(training_dataset, test_dataset, network):
     test_columns = test_dataset.get_columns()
     test_random_columns = test_dataset.get_random_columns()
 
-    print("Scores: Training[ %.6f / %.6f ]  Test[ %.6f / %.6f ]" % \
+    tr_score, tr_rand_score, te_score, te_rand_score = \
         (evaluate(network, training_columns),
          evaluate(network, training_random_columns),
          evaluate(network, test_columns),
-         evaluate(network, test_random_columns)))
+         evaluate(network, test_random_columns))
+
+    print("Scores: Training[ %.6f / %.6f (ratio %10.2f)]  Test[ %.6f / %.6f (ratio %10.2f)]" % \
+        (tr_score, tr_rand_score, tr_score / tr_rand_score,
+         te_score, te_rand_score, te_score / te_rand_score))
 
 if __name__ == "__main__":
     try:
         train = Dataset.load("dataset/train.dataset")
         test = Dataset.load("dataset/test.dataset")
+        print("Loaded datasets from ./datasets/")
     except FileNotFoundError:
+        print("Creating training and test sets ...")
         train,test = build_dataset()
+        print(" ... saving to ./datasets/")
         train.save("dataset/train.dataset")
         test.save("dataset/test.dataset")
 
+    mean = float(argv[1])
     for size in [20, 100, 200, 1000]:
-        path = "networks/%d.network" % size
+        path = "networks/size%d-mean%0.3f.network" % (size, mean)
         try:
-            network = GNGNetwork.load(path)
+            network = GNGNetwork.load(path, mean)
+            print("Loaded network (%d nodes, mean %f) from %s" % (size, mean, path))
         except FileNotFoundError:
-            network = gng_main(train,test,200, 60 * 60 * 3)
+            # Train for 3 hours
+            minutes = 60 * 3
+            print("Training network (%d nodes, mean %f) for %d minutes..." % (size, mean, minutes))
+            network = gng_main(train,test,size, mean, 60 * minutes)
+            print("... saving to %s" % path)
             network.save(path)
-        print("Network: %d Nodes" % size)
+        print("Evaluating network...")
+        print(network.run_iterations)
         evaluate_network(train, test, network)
         print("")
 

@@ -18,9 +18,10 @@ def move(origin, destination, factor, dest_array):
         dest_array[i] = origin[i] + ((destination[i]-origin[i])*factor)
 
 class GrowingNeuralGas:
-    def __init__(self, size, seed_size=2, es=0.05, en=0.0005, beta=0.99999,
+    def __init__(self, size, seed_size=2, es=0.05, en=0.0005, beta=0.99999, mean=0.075,
                        max_age=25, error_threshold=10.0, feature_length=13, verbose=False):
         self.size = size
+        self.mean = mean
         self.feature_length = feature_length
         self.output = numpy.zeros(self.size)
         self.error = [0.0 for _ in range(self.size)]
@@ -114,10 +115,7 @@ class GrowingNeuralGas:
             if self.active_neurons[i]:
                 d = distance(self.locations[i], values)
                 self.distances[i] = d
-                #self.output[i] = 1.0 / d
-                self.output[i] = rbf(d, 0.05)
-                #self.output[i] = rbf(d, 0.075)
-                #self.output[i] = rbf(d, 0.1)
+                self.output[i] = rbf(d, self.mean)
 
         # If unlocked, perform additional computation for learning.
         if not self.locked: 
