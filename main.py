@@ -1,4 +1,5 @@
 import random
+from time import time
 from galg import GeneticAlgorithm, Population, Selection, SelMethod
 from network import Network, GNGNetwork
 from dataset import Dataset, SequenceCluster
@@ -34,11 +35,11 @@ def print_subsequences(sequences, length, indices):
         print(seq[i:i+length])
     print("")
 
-def ga_main(sequence_cluster, length, network):
+def ga_main(sequence_cluster, search_length, network):
     # Population
     pop_size = 500
     num_random = 50
-    pop = Population(network, sequence_cluster.sequences, length, pop_size, num_random)
+    pop = Population(network, sequence_cluster.sequences, search_length, pop_size, num_random)
 
     # Genetic Algorithm
     #selection = Selection(SelMethod.truncation, 10)
@@ -55,12 +56,13 @@ def ga_main(sequence_cluster, length, network):
     mutation_rate = 0.05
     galg = GeneticAlgorithm(selection, mutation_rate)
 
-    iterations = 100
+    iterations = 25
     best = galg.run(pop, num_iterations=iterations, verbose=True)
 
-    print_subsequences(sequence_cluster.sequences, length, best)
+    print_subsequences(sequence_cluster.sequences, search_length, best)
 
-    print("Resulting indices:")
+    print("Resulting indices (score: %6.4f):" % \
+        network.evaluate(sequence_cluster.sequences, search_length, best))
     print(" ".join("%3d" % i for i in best))
 
     def calc_diff(i_a, i_b):
@@ -68,13 +70,16 @@ def ga_main(sequence_cluster, length, network):
 
     print("\nActual alignment indices:")
     comparisons = \
-        [(length, calc_diff(indices, best),
+        [(length,
+         calc_diff(indices, best),
+         network.evaluate(
+            sequence_cluster.sequences, length, indices),
          " ".join("%3d" % i for i in indices))
          for length,indices in sequence_cluster.alignments]
 
-    for length,diff,indices in sorted(comparisons, key=lambda x:x[1]):
-        print("len: %3d diff: %11.6f\n  %s" % \
-            (length, diff, indices))
+    for length,diff,score,indices in sorted(comparisons, key=lambda x:x[1]):
+        print("len: %3d score: %11.6f: diff: %11.6f\n  %s" % \
+            (length, score, diff, indices))
 
 def evaluate(network, columns, verbose=False):
     total_score = 0
@@ -84,16 +89,12 @@ def evaluate(network, columns, verbose=False):
         total_score += network.evaluate_column(column, verbose=verbose)
     return total_score / count
 
-def gng_main():
+def gng_main(training_dataset, test_dataset, network_size, time_limit):
     # Parameters
-    max_columns = 1000
-    network_size = 200
-    iterations = 100
+    max_columns = 50000 # Use all
     training_fraction = 0.05
 
-    # Generate dataset and print statistics
-    training_dataset, test_dataset = \
-        Dataset.create_split_dataset(get_amino_acids(), "data")
+    # Print statistics
     print("Training set:")
     training_dataset.print_statistics()
     print("")
@@ -122,21 +123,60 @@ def gng_main():
     print("Columns: Training[ %6d / %6d ]  Test[ %6d / %6d]" % \
         (len(training_columns), len(training_random_columns),
          len(test_columns),      len(test_random_columns)))
-    print_scores(0)
 
     # Perform training
-    for _ in range(iterations):
+    start = time()
+    iterations = 0
+    while time() - start < time_limit:
+        iterations += 1
         network.train(training_columns, 1, fraction=training_fraction, verbose=False)
-        print_scores(_)
+        #print_scores(iterations)
 
     # Print resulting network and post-scores
     network.gng.print_nodes()
-    print_scores(_+1)
+    #print_scores(iterations+1)
 
-    return training_dataset, test_dataset, network
+    return network
+
+def build_dataset(fraction=0.7):
+    return Dataset.create_split_dataset(
+        get_amino_acids(), "data", training_fraction=fraction)
+
+def evaluate_network(training_dataset, test_dataset, network):
+    # Pull columns
+    training_columns = training_dataset.get_columns()
+    training_random_columns = training_dataset.get_random_columns()
+    test_columns = test_dataset.get_columns()
+    test_random_columns = test_dataset.get_random_columns()
+
+    print("Scores: Training[ %.6f / %.6f ]  Test[ %.6f / %.6f ]" % \
+        (evaluate(network, training_columns),
+         evaluate(network, training_random_columns),
+         evaluate(network, test_columns),
+         evaluate(network, test_random_columns)))
 
 if __name__ == "__main__":
-    train, test, network = gng_main()
+    try:
+        train = Dataset.load("dataset/train.dataset")
+        test = Dataset.load("dataset/test.dataset")
+    except FileNotFoundError:
+        train,test = build_dataset()
+        train.save("dataset/train.dataset")
+        test.save("dataset/test.dataset")
+
+    for size in [20, 100, 200, 1000]:
+        path = "networks/%d.network" % size
+        try:
+            network = GNGNetwork.load(path)
+        except FileNotFoundError:
+            network = gng_main(train,test,200, 60 * 60 * 3)
+            network.save(path)
+        print("Network: %d Nodes" % size)
+        evaluate_network(train, test, network)
+        print("")
+
+    '''
+    network = gng_main(train,test,200,30)
 
     # Create sequence cluster
     sub_length=10
@@ -145,3 +185,4 @@ if __name__ == "__main__":
 
     #ga_main(cluster, sub_length, Network(get_amino_acids()))
     ga_main(cluster, sub_length, network)
+    '''

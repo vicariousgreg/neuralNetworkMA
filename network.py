@@ -25,6 +25,7 @@ class GNGNetwork:
     def __init__(self, alphabet, size=20, verbose=False):
         self.gng = GrowingNeuralGas(size, feature_length=len(alphabet), verbose=verbose)
         self.alphabet = alphabet
+        self.run_iterations = 0
         self.gng.lock(True)
 
     def save(self, filename):
@@ -39,6 +40,7 @@ class GNGNetwork:
         self.gng.lock(False)
         indices = list(range(len(columns)))
         for _ in range(iterations):
+            self.run_iterations += 1
             shuffle(indices)
             if verbose: print("Iter %4d" % _)
             for i in indices[:int(fraction * len(indices))]:
