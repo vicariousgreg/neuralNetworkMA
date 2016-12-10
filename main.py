@@ -186,7 +186,7 @@ if __name__ == "__main__":
             print("... saving to %s" % path)
             network.save(path)
         print("Evaluating network...")
-        print(network.run_iterations)
+        print("Training iterations: %d" % network.run_iterations)
         evaluate_network(train, test, network)
         print("")
 
